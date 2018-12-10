@@ -11,9 +11,9 @@ import (
 
 // A Request contains the apikey, url and BitDB object
 type Request struct {
-	apiKey string
-	url    string
-	BitDB  BitDB
+	apiKey  string
+	BaseURL string
+	BitDB   BitDB
 }
 
 type query struct {
@@ -45,7 +45,7 @@ type TxHash struct {
 func New(version int, apiKey string, url string) *Request {
 	request := new(Request)
 	request.apiKey = apiKey
-	request.url = url
+	request.BaseURL = url
 	request.BitDB.Version = version
 	return request
 }
@@ -60,7 +60,7 @@ func (b *Request) Request(query interface{}, jq string) (string, error) {
 		return "", err
 	}
 	b64Query := b64.StdEncoding.EncodeToString([]byte(j))
-	req, err := http.NewRequest("GET", b.url+b64Query, nil)
+	req, err := http.NewRequest("GET", b.BaseURL+b64Query, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
