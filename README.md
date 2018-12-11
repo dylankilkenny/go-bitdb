@@ -25,7 +25,7 @@ BitDb := bitdb.New(version, bitdbURL, apiKey) // Create new instance
 type TxHash struct {
   Hash string `json:"tx.h"`
 }
-txHash := bitdb.TxHash{Hash: "ffff5c6d0660068381b26fe3546eb2a51faf1a0a1a707db1ca32a5b168a7301b"}
+txHash := TxHash{Hash: "ffff5c6d0660068381b26fe3546eb2a51faf1a0a1a707db1ca32a5b168a7301b"}
 jq := ".[] | .out[0] | {amount: .e.v}"
 response, err := BitDb.Request(txHash, jq)
 if err != nil {
