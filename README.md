@@ -1,5 +1,5 @@
 # go-bitdb
-Using go-bitdb you can query a bitdb node and open a connect to a bitsocket node in golang.
+Using go-bitdb you can query a bitdb node and connect to a bitsocket node in golang.
 
 ## BitDB
 
