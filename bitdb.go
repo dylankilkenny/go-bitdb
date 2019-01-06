@@ -34,6 +34,11 @@ type BitDB struct {
 	Response response `json:"r"`
 }
 
+type Response struct {
+	Confirmed   interface{} `json:"c"`
+	Unconfirmed interface{} `json:"u"`
+}
+
 // TxHash is a sample struct which can be passed to the query field
 // on the BitDB object. Instantiate TxHash with a transaction hash,
 // set it on BitDB.Query, and the bitdb node will return the transaction object.
@@ -51,15 +56,41 @@ func New(version int, apiKey string, url string) *Request {
 }
 
 // Request queries a bitdb node and returns the result
-func (b *Request) Request(query interface{}, jq string) (string, error) {
+func (b *Request) Request(query interface{}, jq string) (*Response, error) {
 	b.BitDB.Query.Find = query
 	b.BitDB.Response.Function = jq
 	j, err := json.Marshal(b.BitDB)
 	if err != nil {
 		fmt.Println(err)
-		return "", err
+		return nil, err
 	}
 	b64Query := b64.StdEncoding.EncodeToString([]byte(j))
+	req, err := http.NewRequest("GET", b.BaseURL+b64Query, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("key", b.apiKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(body))
+	response := Response{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		fmt.Println("JSON ERROR: ", err)
+	}
+	return &response, nil
+}
+
+// RawRequest accepts a bitquery object as a json string
+func (b *Request) RawRequest(bitquery []byte) (string, error) {
+	b64Query := b64.StdEncoding.EncodeToString(bitquery)
 	req, err := http.NewRequest("GET", b.BaseURL+b64Query, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -78,23 +109,7 @@ func (b *Request) Request(query interface{}, jq string) (string, error) {
 	return string(body), nil
 }
 
-// RawRequest accepts a bitquery object as a json string
-func RawRequest(bitquery []byte, url string, apiKey string) (string, error) {
-	b64Query := b64.StdEncoding.EncodeToString(bitquery)
-	req, err := http.NewRequest("GET", url+b64Query, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	req.Header.Set("key", apiKey)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return string(body), nil
+// TxHash returns a struct for querying a transaction by hash
+func (b *Request) TxHash(prevTxID string) TxHash {
+	return TxHash{Hash: prevTxID}
 }

@@ -16,6 +16,11 @@ type Connection struct {
 	BitDB   BitDB
 }
 
+type Event struct {
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
+}
+
 // NewSocket builds and returns a Connection
 func NewSocket(version int, url string) *Connection {
 	request := new(Connection)
@@ -25,7 +30,7 @@ func NewSocket(version int, url string) *Connection {
 }
 
 // Stream opens a connection to a bitsocket url and recieves a stream of server sent events
-func (bs *Connection) Stream(query interface{}, jq string) (events chan []byte, err error) {
+func (bs *Connection) Stream(query interface{}, jq string) (events chan *Event, err error) {
 	bs.BitDB.Query.Find = query
 	bs.BitDB.Response.Function = jq
 	j, err := json.Marshal(bs.BitDB)
@@ -39,14 +44,14 @@ func (bs *Connection) Stream(query interface{}, jq string) (events chan []byte, 
 }
 
 // RawBitsocket opens a connection to a bitsocket url and recieves a stream of server sent events
-func RawBitsocket(bitquery []byte, url string) (events chan []byte, err error) {
+func RawBitsocket(bitquery []byte, url string) (events chan *Event, err error) {
 	b64Query := b64.StdEncoding.EncodeToString(bitquery)
 	events, err = stream(url + b64Query)
 	return events, err
 
 }
 
-func stream(url string) (events chan []byte, err error) {
+func stream(url string) (events chan *Event, err error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -54,7 +59,7 @@ func stream(url string) (events chan []byte, err error) {
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("got response status code %d", resp.StatusCode)
 	}
-	events = make(chan []byte)
+	events = make(chan *Event)
 	var buf bytes.Buffer
 	go func() {
 		reader := bufio.NewReader(resp.Body)
@@ -73,7 +78,12 @@ func stream(url string) (events chan []byte, err error) {
 				b := buf.Bytes()
 				if bytes.HasPrefix(b, []byte("{")) {
 					buf.Reset()
-					events <- b
+					ev := Event{}
+					err = json.Unmarshal(b, &ev)
+					if err != nil {
+						fmt.Println("JSON ERROR: ", err)
+					}
+					events <- &ev
 				}
 			default:
 				fmt.Fprintf(os.Stderr, "Error: len:%d\n%s", len(line), line)
