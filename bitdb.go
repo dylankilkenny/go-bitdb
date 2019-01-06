@@ -3,6 +3,7 @@ package bitdb
 import (
 	b64 "encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -57,29 +58,14 @@ func New(version int, apiKey string, url string) *Request {
 
 // Request queries a bitdb node and returns the result
 func (b *Request) Request(query interface{}, jq string) (*Response, error) {
-	b.BitDB.Query.Find = query
-	b.BitDB.Response.Function = jq
-	j, err := json.Marshal(b.BitDB)
+	b64Query, err := buildQuery(b, query, jq)
+	if err != nil {
+		log.Fatal(err)
+	}
+	body, err := fetch(b.BaseURL+b64Query, b.apiKey)
 	if err != nil {
 		fmt.Println(err)
-		return nil, err
 	}
-	b64Query := b64.StdEncoding.EncodeToString([]byte(j))
-	req, err := http.NewRequest("GET", b.BaseURL+b64Query, nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	req.Header.Set("key", b.apiKey)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(body))
 	response := Response{}
 	err = json.Unmarshal(body, &response)
 	if err != nil {
@@ -89,27 +75,56 @@ func (b *Request) Request(query interface{}, jq string) (*Response, error) {
 }
 
 // RawRequest accepts a bitquery object as a json string
-func (b *Request) RawRequest(bitquery []byte) (string, error) {
+func (b *Request) RawRequest(bitquery []byte) (*Response, error) {
 	b64Query := b64.StdEncoding.EncodeToString(bitquery)
-	req, err := http.NewRequest("GET", b.BaseURL+b64Query, nil)
+	body, err := fetch(b.BaseURL+b64Query, b.apiKey)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
-	req.Header.Set("key", b.apiKey)
-	resp, err := http.DefaultClient.Do(req)
+	response := Response{}
+	err = json.Unmarshal(body, &response)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println("JSON ERROR: ", err)
 	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return string(body), nil
+	return &response, nil
 }
 
 // TxHash returns a struct for querying a transaction by hash
 func (b *Request) TxHash(prevTxID string) TxHash {
 	return TxHash{Hash: prevTxID}
+}
+
+func fetch(url, apiKey string) ([]byte, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if apiKey != "" {
+		req.Header.Set("key", apiKey)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 304 {
+		return nil, errors.New("Auth: API key required")
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return body, nil
+}
+
+func buildQuery(b *Request, query interface{}, jq string) (string, error) {
+	b.BitDB.Query.Find = query
+	b.BitDB.Response.Function = jq
+	j, err := json.Marshal(b.BitDB)
+	if err != nil {
+		fmt.Println(err)
+		return "", err
+	}
+	return b64.StdEncoding.EncodeToString([]byte(j)), nil
 }
