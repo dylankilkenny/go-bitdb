@@ -83,7 +83,9 @@ func stream(url string) (events chan *Event, err error) {
 					if err != nil {
 						fmt.Println("JSON ERROR: ", err)
 					}
-					events <- &ev
+					if ev.Type == "mempool" {
+						events <- &ev
+					}
 				}
 			default:
 				fmt.Fprintf(os.Stderr, "Error: len:%d\n%s", len(line), line)
